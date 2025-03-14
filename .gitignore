@@ -15,7 +15,7 @@ word/__pycache__
 *.zip
 http-v2
 selfcheck
-models
+#models
 *.jpg
 temp_processing
 data
