@@ -1,0 +1,5 @@
+PyMuPDF>=1.25.3
+doclayout-yolo
+huggingface_hub
+gradio
+gradio_pdf
