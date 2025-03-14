@@ -3,3 +3,4 @@ doclayout-yolo
 huggingface_hub
 gradio
 gradio_pdf
+zhipuai

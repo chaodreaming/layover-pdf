@@ -11,6 +11,7 @@ from typing import Dict
 import hashlib
 import cv2
 import fitz
+import torch.cuda
 from PIL import Image, ImageDraw, ImageFont
 from doclayout_yolo import YOLOv10
 from tqdm import tqdm
@@ -18,6 +19,7 @@ from zhipuai import ZhipuAI
 import uuid
 root_path="files"
 model = YOLOv10("models/doclayout_yolo_ft.pt")
+device="cuda:0" if torch.cuda.is_available() else "cpu"
 def truncate_pdf(pdf_path, n_pages):
     """
     将PDF文件截断为前n页并替换原文件
@@ -415,7 +417,7 @@ def detect_text_regions(image_path, model):
         image_path,
         imgsz=1024,
         conf=0.5,
-        device="cuda:0"
+        device=device
     )
 
     regions = []
