@@ -1,25 +1,179 @@
+# -*- coding: utf-8 -*-
 import base64
 import glob
+import hashlib
 import os
 import re
 import shutil
 import threading
+import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from typing import Dict
-import hashlib
+from typing import List, Tuple
+
 import cv2
 import fitz
-import torch.cuda
+import numpy as np
+import onnxruntime as ort
 from PIL import Image, ImageDraw, ImageFont
-from doclayout_yolo import YOLOv10
 from tqdm import tqdm
 from zhipuai import ZhipuAI
-import uuid
-root_path="files"
-model = YOLOv10("models/doclayout_yolo_ft.pt")
-device="cuda:0" if torch.cuda.is_available() else "cpu"
+root_path="temp"
+
+class DocLayoutONNX:
+    def __init__(self, model_path: str, conf_thresh: float = 0.5, iou_thresh: float = 1):
+        available_providers = ort.get_available_providers()
+
+        # 动态选择 Provider 优先级（存在 CUDA 时优先使用）
+        providers = (
+            ['CUDAExecutionProvider', 'CPUExecutionProvider']
+            if 'CUDAExecutionProvider' in available_providers
+            else ['CPUExecutionProvider']
+        )
+        self.session = ort.InferenceSession(
+            model_path,
+            providers=providers
+        )
+        self.conf_threshold = conf_thresh
+        self.iou_threshold = iou_thresh
+        self.input_shape = self.session.get_inputs()[0].shape[2:]
+
+        # 类别定义
+        self.class_map = {
+            0: 'title', 1: 'plain text', 2: 'abandon', 3: 'figure',
+            4: 'figure_caption', 5: 'table', 6: 'table_caption',
+            7: 'table_footnote', 8: 'isolate_formula', 9: 'formula_caption'
+        }
+
+        # 可视化配色方案 (BGR格式)
+        self.color_palette = {
+            0: (0, 69, 255),  # 标题 - 红色
+            1: (0, 255, 0),  # 正文 - 绿色
+            3: (255, 0, 0),  # 图片 - 蓝色
+            4: (255, 255, 0),  # 图注 - 黄色
+            5: (0, 0, 128),  # 表格 - 深蓝
+            6: (128, 0, 128),  # 表注 - 紫色
+            8: (0, 192, 192),  # 独立公式 - 青色
+            9: (128, 128, 128)  # 公式说明 - 灰色
+        }
+    def preprocess(self, image: np.ndarray) -> Tuple[np.ndarray, float]:
+        """图像预处理流水线"""
+        # 保持宽高比的resize
+        h, w = image.shape[:2]
+        scale = min(self.input_shape[0] / h, self.input_shape[1] / w)
+        new_h, new_w = int(h * scale), int(w * scale)
+
+        # OpenCV处理流程
+        resized = cv2.resize(image, (new_w, new_h))
+        padded = np.full((*self.input_shape, 3), 114, dtype=np.uint8)
+        padded[:new_h, :new_w] = resized
+
+        # 归一化处理 (BGR格式)
+        normalized = padded.astype(np.float32) / 255.0
+        normalized = np.transpose(normalized, (2, 0, 1))  # HWC -> CHW
+        return np.expand_dims(normalized, 0), scale  # 添加batch维度
+
+    def postprocess(self, outputs: np.ndarray, scale: float) -> List[List[float]]:
+        """输出解码和后处理"""
+        # 输出格式解析 (假设输出为[1, num_boxes, 6]格式)
+        boxes = outputs[0]
+
+        # 过滤低置信度检测结果
+        conf_mask = boxes[:, 4] > self.conf_threshold
+        boxes = boxes[conf_mask]
+
+        # 转换到原始图像坐标
+        boxes[:, :4] /= scale
+
+        # 执行非极大值抑制
+        keep_idx = cv2.dnn.NMSBoxes(
+            bboxes=boxes[:, :4].tolist(),
+            scores=boxes[:, 4].tolist(),
+            score_threshold=self.conf_threshold,
+            nms_threshold=self.iou_threshold
+        )
+
+        return boxes[keep_idx].tolist() if len(keep_idx) > 0 else []
+
+    def __call__(self, image_path: str) -> List[List[float]]:
+        """完整推理流程"""
+        # 图像读取和预处理
+        img = cv2.imread(image_path)
+        input_tensor, scale = self.preprocess(img)
+
+        # ONNX推理
+        outputs = self.session.run(
+            output_names=None,
+            input_feed={self.session.get_inputs()[0].name: input_tensor}
+        )[0]  # 假设第一个输出为检测结果
+
+        # 后处理
+        return self.postprocess(outputs, scale)
+
+    def visualize_and_save(self, image_path: str, results: List[List[float]],
+                           output_path: str = "result.png",
+                           hide_abandon: bool = True) -> None:
+        """
+        可视化检测结果并保存图像
+        :param image_path: 原始图像路径
+        :param results: 检测结果列表
+        :param output_path: 输出保存路径
+        :param hide_abandon: 是否隐藏废弃区域
+        """
+        img = cv2.imread(image_path)
+        if img is None:
+            raise FileNotFoundError(f"无法加载图像：{image_path}")
+
+        for box in results:
+            xmin, ymin, xmax, ymax, conf, cls_id = map(float, box)
+            cls_id = int(cls_id)
+
+            # 过滤废弃区域
+            if hide_abandon and cls_id == 2:
+                continue
+
+            # 转换坐标到整数
+            xmin, ymin, xmax, ymax = map(int, [xmin, ymin, xmax, ymax])
+
+            # 获取类别信息和颜色
+            label = self.class_map.get(cls_id, "unknown")
+            color = self.color_palette.get(cls_id, (255, 255, 255))
+
+            # 绘制检测框
+            cv2.rectangle(img, (xmin, ymin), (xmax, ymax), color, 2)
+
+            # 构建标签文本
+            label_text = f"{label}: {conf:.2f}"
+
+            # 计算文本尺寸
+            (tw, th), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+
+            # 绘制文本背景
+            cv2.rectangle(img,
+                          (xmin, ymin - 20),
+                          (xmin + tw, ymin),
+                          color,
+                          -1)
+
+            # 添加文本标签
+            cv2.putText(img,
+                        label_text,
+                        (xmin, ymin - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (255, 255, 255),
+                        1,
+                        cv2.LINE_AA)
+
+        # 保存结果
+        cv2.imwrite(output_path, img)
+        print(f"可视化结果已保存至：{output_path}")
+
+# model = YOLOv10("models/doclayout_yolo_ft.pt")
+model=DocLayoutONNX("models/doclayout_yolo_ft.onnx")
+# device="cuda:0" if torch.cuda.is_available() else "cpu"
 def truncate_pdf(pdf_path, n_pages):
     """
     将PDF文件截断为前n页并替换原文件
@@ -115,7 +269,11 @@ def dir_init(output_dir):
         os.makedirs(output_dir, exist_ok=True)
     except:
         os.makedirs(output_dir, exist_ok=True)
-
+def dir_clean(output_dir):
+    try:
+        shutil.rmtree(output_dir)
+    except:
+        pass
 
 def calculate_font_size(text, target_coords, font_path, margin=5):
     # 解包目标区域坐标
@@ -412,24 +570,37 @@ def pdf_to_images(pdf_path, output_folder):
     doc.close()
     return page_paths
 
+# def detect_text_regions(image_path, model):
+#     det_res = model.predict(
+#         image_path,
+#         imgsz=1024,
+#         conf=0.5,
+#         device=device
+#     )
+#
+#     regions = []
+#     for box in det_res[0].boxes:
+#         # names: {0: 'title', 1: 'plain text', 2: 'abandon', 3: 'figure', 4: 'figure_caption', 5: 'table',
+#         #         6: 'table_caption', 7: 'table_footnote', 8: 'isolate_formula', 9: 'formula_caption'}
+#
+#         if box.cls in [0,1,4,6,7]: #只翻译1 title 2 plain text 4 figure_caption 6 table_caption 7 table_footnote
+#             x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+#             regions.append((x1, y1, x2, y2))
+#     return regions
 def detect_text_regions(image_path, model):
-    det_res = model.predict(
-        image_path,
-        imgsz=1024,
-        conf=0.5,
-        device=device
-    )
+    results = model(image_path )
 
     regions = []
-    for box in det_res[0].boxes:
+    for box in results:
+        x1, y1, x2, y2, conf, class_id=box
+
         # names: {0: 'title', 1: 'plain text', 2: 'abandon', 3: 'figure', 4: 'figure_caption', 5: 'table',
         #         6: 'table_caption', 7: 'table_footnote', 8: 'isolate_formula', 9: 'formula_caption'}
 
-        if box.cls in [0,1,4,6,7]: #只翻译1 title 2 plain text 4 figure_caption 6 table_caption 7 table_footnote
-            x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+        if class_id in [0,1,4,6,7]: #只翻译1 title 2 plain text 4 figure_caption 6 table_caption 7 table_footnote
+            x1, y1, x2, y2 = map(int, (x1, y1, x2, y2))
             regions.append((x1, y1, x2, y2))
     return regions
-
 
 def parallel_process_by_pagepath(all_crop_info, batch_results, max_workers=None):
     """
@@ -510,6 +681,7 @@ def parallel_process_by_pagepath(all_crop_info, batch_results, max_workers=None)
 def process_pdf(input_pdf, api_key,pages):
     """主处理流程（批量优化版）"""
     # output_pdf = input_pdf[:-4]+"_en2zh.pdf"
+    print(f"文件开始处理，存储路径:{input_pdf}")
     input_pdf=truncate_pdf(input_pdf,pages)
     output_path = os.path.join(os.path.dirname(input_pdf), f"translated_{uuid.uuid4()}.pdf")
 
@@ -550,7 +722,7 @@ def process_pdf(input_pdf, api_key,pages):
         parallel_process_by_pagepath(
             all_crop_info=all_crop_info,
             batch_results=batch_results,
-            max_workers=8  # 可选参数
+            max_workers=os.cpu_count() * 2  # 可选参数
         )
 
         # 批量替换文本
@@ -589,7 +761,6 @@ def process_pdf(input_pdf, api_key,pages):
         deflate_images=True,  # 图像压缩
         deflate_fonts=True  # 字体压缩
     )
+    dir_clean(img_folder)
+    print(f"文件翻译完成，存储路径:{output_path}")
     return output_path
-
-    # 清理临时文件（按需启用）
-    # shutil.rmtree(img_folder)

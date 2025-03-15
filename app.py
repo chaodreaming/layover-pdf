@@ -96,4 +96,4 @@ with gr.Blocks(title="PDF翻译工具",
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(server_port=9000)

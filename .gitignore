@@ -11,7 +11,6 @@ word/test
 word/__pycache__
 /.idea
 *.png
-*.onnx
 *.zip
 http-v2
 selfcheck
