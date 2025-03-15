@@ -4,3 +4,4 @@ gradio
 zhipuai
 onnx
 onnxruntime
+opencv-python
