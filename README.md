@@ -14,6 +14,12 @@ modelscope测试：https://www.modelscope.cn/studios/chaodreaming/layover-pdf/su
 
 modelscope无法承受很大的并发，当无法使用时可以自行在本地构建使用app.py
 
+### 效果演示
+
+<div align="center">
+<img src="./assets/preview.gif" width="80%"/>
+</div>
+
 ## Quick CPU Demo
 
 
@@ -31,7 +37,7 @@ modelscope无法承受很大的并发，当无法使用时可以自行在本地�
 
 #### 服务地址：
 
-`http://localhost:7860/`
+`http://localhost:9000/`
 
 ### 命令行参数方式
 

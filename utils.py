@@ -23,7 +23,19 @@ from tqdm import tqdm
 from zhipuai import ZhipuAI
 root_path="temp"
 
-font_path="fonts/NotoSerifSC-Regular.ttf"
+font_path= "assets/NotoSerifSC-Regular.ttf"
+system_prompt="""
+你正在处理学术论文图像，请严格按以下步骤执行：
+1. OCR识别：完整精确提取图片中的文本，保留公式和特殊符号
+2. 学术翻译：将内容翻译为中文，遵循以下规则：
+- Introduction → 引言
+- Conclusion → 结论
+- Theorem → 定理
+- 保留LaTeX公式
+- 学术术语优先使用《英汉学术翻译规范》标准译法
+3. 输出格式：仅返回JSON结构：
+{ "translated_text": "..."}
+"""
 class DocLayoutONNX:
     def __init__(self, model_path: str, conf_thresh: float = 0.5, iou_thresh: float = 1):
         available_providers = ort.get_available_providers()
@@ -174,8 +186,8 @@ class DocLayoutONNX:
         cv2.imwrite(output_path, img)
         print(f"可视化结果已保存至：{output_path}")
 
-# model = YOLOv10("models/doclayout_yolo_ft.pt")
-model=DocLayoutONNX("models/doclayout_yolo_ft.onnx")
+# model = YOLOv10("assets/doclayout_yolo_ft.pt")
+model=DocLayoutONNX("assets/doclayout_yolo_ft.onnx")
 # device="cuda:0" if torch.cuda.is_available() else "cpu"
 def truncate_pdf(pdf_path, n_pages):
     """
@@ -387,6 +399,7 @@ def replace_text_in_image(
     img.save(output_path)
 
     return output_path
+
 def glm_ocr_translate(image_path,api_key):
     client = ZhipuAI(api_key=api_key)
     with open(image_path, 'rb') as img_file:
@@ -397,24 +410,13 @@ def glm_ocr_translate(image_path,api_key):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": """
-                    你正在处理学术论文图像，请严格按以下步骤执行：
-                    1. OCR识别：完整精确提取图片中的文本，保留公式和特殊符号
-                    2. 学术翻译：将内容翻译为中文，遵循以下规则：
-                       - Introduction → 引言
-                       - Conclusion → 结论
-                       - Theorem → 定理
-                       - 保留LaTeX公式
-                       - 学术术语优先使用《英汉学术翻译规范》标准译法
-                    3. 输出格式：仅返回JSON结构：
-                       { "translated_text": "..."}
-                    """},
+                    {"type": "text", "text":system_prompt },
                     {"type": "image_url", "image_url": {"url": img_base}}
                 ]
             }
         ],
-        top_p=0.7,
-        temperature=0.95,
+        temperature=0.1,  # 最小随机性
+        top_p=0.4,
         # max_tokens=1024,
     )
     result=response.choices[0].message.content

@@ -12,7 +12,7 @@ def get_info(input_pdf, api_key, pages):
     env_api_key = os.environ.get("api_key")
     if env_api_key:
         api_key = env_api_key
-        env_api_result, env_api_status = validate_api_key("models/img.png", env_api_key)
+        env_api_result, env_api_status = validate_api_key("assets/img.png", env_api_key)
         if not env_api_status:
 
             raise gr.Error("环境变量中的api_key不正确",env_api_result)
