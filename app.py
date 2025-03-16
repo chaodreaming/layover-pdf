@@ -8,6 +8,14 @@ import pymupdf
 from utils import process_pdf,validate_api_key
 
 def get_info(input_pdf, api_key, pages):
+
+    env_api_key = os.environ.get("api_key")
+    if env_api_key:
+        api_key = env_api_key
+        env_api_result, env_api_status = validate_api_key("models/img.png", env_api_key)
+        if not env_api_status:
+
+            raise gr.Error("环境变量中的api_key不正确",env_api_result)
     if not api_key:
         raise gr.Error( "api_key不能为空")
     api_result,api_status=validate_api_key("models/img.png",api_key)
@@ -37,10 +45,10 @@ def convert_to_pdf_if_needed(file_path):
 with gr.Blocks(title="PDF翻译工具",
                css=".download-box {border: 1px solid #e0e0e0; padding: 20px; border-radius: 8px;}") as demo:
     # ================= 标题区域 =================
-    gr.Markdown("# PDF翻译工具（英语转中文）使用glm-4v-flash，免费并且10QPS,速度约为10s/页", elem_id="title")
+    gr.Markdown("# chaodreaming开源PDF翻译工具（英语转中文）使用glm-4v-flash，免费并且10QPS,速度约为10s/页", elem_id="title")
     gr.Markdown("# api_key注册：https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys", elem_id="title")
     gr.Markdown("# 开源地址：https://github.com/chaodreaming/layover-pdf", elem_id="title")
-
+    gr.Markdown("# modelscope测试：https://www.modelscope.cn/studios/chaodreaming/layover-pdf/summary")
     # ================= 控制区域 =================
     with gr.Row(variant="panel"):
         with gr.Column(scale=4, min_width=600):
@@ -50,7 +58,9 @@ with gr.Blocks(title="PDF翻译工具",
                                      height=400)
                 api_key_input = gr.Textbox(label="🔑 API密钥",
                                            type="password",
-                                           placeholder="请输入您的API密钥")
+                                           placeholder="请输入您的API密钥",
+                                           visible=not os.environ.get("api_key")  # 关键安全点
+                                        )
                 page_slider = gr.Slider(1, 100,
                                         value=10,
                                         label="📄 转换页数范围",
