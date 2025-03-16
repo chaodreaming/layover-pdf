@@ -20,7 +20,6 @@ COPY ./app.py /app/app.py
 COPY ./utils.py /app/utils.py
 COPY ./main.py /app/main.py
 COPY assets/ /app/assets
-COPY ./models/ /app/models
 RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 # 暴露端口
 EXPOSE 9000

@@ -18,7 +18,7 @@ def get_info(input_pdf, api_key, pages):
             raise gr.Error("环境变量中的api_key不正确",env_api_result)
     if not api_key:
         raise gr.Error( "api_key不能为空")
-    api_result,api_status=validate_api_key("models/img.png",api_key)
+    api_result,api_status=validate_api_key("assets/img.png",api_key)
     if not api_status:
         raise gr.Error(api_result)
 
