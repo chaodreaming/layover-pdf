@@ -400,30 +400,38 @@ def replace_text_in_image(
 
     return output_path
 
-def glm_ocr_translate(image_path,api_key):
+def glm_ocr_translate(image_path,api_key,max_retries=5):
     client = ZhipuAI(api_key=api_key)
     with open(image_path, 'rb') as img_file:
         img_base = base64.b64encode(img_file.read()).decode('utf-8')
-    response = client.chat.completions.create(
-        model="glm-4v-flash",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text":system_prompt },
-                    {"type": "image_url", "image_url": {"url": img_base}}
-                ]
-            }
-        ],
-        temperature=0.1,  # 最小随机性
-        top_p=0.4,
-        # max_tokens=1024,
-    )
-    result=response.choices[0].message.content
-    # print("json处理之前",result)
-    # print("#"*100)
-    result = extract_json_from_markdown(result)
-    return result
+    try:
+        for i in range(max_retries):
+            response = client.chat.completions.create(
+                model="glm-4v-flash",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": system_prompt},
+                            {"type": "image_url", "image_url": {"url": img_base}}
+                        ]
+                    }
+                ],
+                temperature=0.1,  # 最小随机性
+                # top_p=0.4,
+                # max_tokens=1024,
+            )
+            result = response.choices[0].message.content
+            # print("json处理之前",result)
+            # print("#"*100)
+            result = extract_json_from_markdown(result)
+            return result
+    except Exception as ex:
+        print(ex)
+        return {
+            "translated_text": None
+        }
+
 
 def glm_batch_translate(req_lists, api_key):
     """带进度条的并行翻译函数
@@ -664,7 +672,7 @@ def parallel_process_by_pagepath(all_crop_info, batch_results, max_workers=None)
                 progress_bar.update(1)
 
     # 执行并行处理
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=final_max_workers) as executor:
         # 提交分组任务到线程池
         futures = [
             executor.submit(_process_group, tasks)
