@@ -1,7 +1,7 @@
-gradio-pdf>=0.0.21
 PyMuPDF>=1.25.3
 gradio
+gradio_pdf
 zhipuai
+onnxruntime-gpu
 onnx
-onnxruntime
 opencv-python
