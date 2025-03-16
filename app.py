@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
+import os
+os.system("pip install -U gradio-pdf")
 import gradio as gr
 from gradio_pdf import PDF
-import os
 import uuid
 import pymupdf
 from utils import process_pdf,validate_api_key

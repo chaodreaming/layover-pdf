@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 from zhipuai import ZhipuAI
 root_path="temp"
-os.system("pip install -U gradio-pdf")
+
 font_path="fonts/NotoSerifSC-Regular.ttf"
 class DocLayoutONNX:
     def __init__(self, model_path: str, conf_thresh: float = 0.5, iou_thresh: float = 1):
