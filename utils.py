@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import sys
 import base64
 import glob
 import hashlib
@@ -21,20 +22,22 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 from zhipuai import ZhipuAI
 root_path="temp"
-
+os.system("pip install -U gradio-pdf")
+font_path="fonts/NotoSerifSC-Regular.ttf"
 class DocLayoutONNX:
     def __init__(self, model_path: str, conf_thresh: float = 0.5, iou_thresh: float = 1):
         available_providers = ort.get_available_providers()
 
         # 动态选择 Provider 优先级（存在 CUDA 时优先使用）
-        providers = (
-            ['CUDAExecutionProvider', 'CPUExecutionProvider']
-            if 'CUDAExecutionProvider' in available_providers
-            else ['CPUExecutionProvider']
-        )
+        # providers = (
+        #     ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        #     if 'CUDAExecutionProvider' in available_providers
+        #     else ['CPUExecutionProvider']
+        # )
+
         self.session = ort.InferenceSession(
             model_path,
-            providers=providers
+            providers=['CPUExecutionProvider']
         )
         self.conf_threshold = conf_thresh
         self.iou_threshold = iou_thresh
@@ -354,7 +357,7 @@ def replace_text_in_image(
         output_path,
         target_coords,  # (x1, y1, x2, y2)
         text,
-        font_path="msyh.ttc",  # 微软雅黑字体（需确保存在）
+        font_path=font_path,  # 微软雅黑字体（需确保存在）
         margin=2,
         text_color=(0, 0, 0),  # 默认黑色
         bg_color=(255, 255, 255)  # 默认白色背景
@@ -659,7 +662,7 @@ def parallel_process_by_pagepath(all_crop_info, batch_results, max_workers=None)
                 progress_bar.update(1)
 
     # 执行并行处理
-    with ThreadPoolExecutor(max_workers=final_max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         # 提交分组任务到线程池
         futures = [
             executor.submit(_process_group, tasks)

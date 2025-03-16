@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import gradio as gr
 from gradio_pdf import PDF
 import os
@@ -96,4 +97,4 @@ with gr.Blocks(title="PDF翻译工具",
     )
 
 if __name__ == "__main__":
-    demo.launch(server_port=9000)
+    demo.launch(server_name="0.0.0.0",server_port=9000)
