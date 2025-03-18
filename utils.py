@@ -198,13 +198,19 @@ def convert_to_pdf_if_needed(file_path):
         with pymupdf.open(file_path) as doc:
             if doc.is_pdf:
                 return file_path
-
-            # 生成临时PDF路径
-            tmp_path = os.path.join(os.path.dirname(file_path), f"temp_{uuid.uuid4()}.pdf")
-            pdf_bytes = doc.convert_to_pdf()
-            with open(tmp_path, "wb") as f:
-                f.write(pdf_bytes)
-            return tmp_path
+            else:
+                tmp_path=image_to_pdf(file_path)
+                return tmp_path
+            # # 生成临时PDF路径
+            # tmp_path = os.path.join(os.path.dirname(file_path), f"temp_{uuid.uuid4()}.pdf")
+            # pdf_bytes = doc.convert_to_pdf()
+            # with open(tmp_path, "wb") as f:
+            #     f.write(pdf_bytes)
+            #     # try:
+            #     #     os.remove(file_path)
+            #     # except Exception as ex:
+            #     #     print("删除转换前生成旧文件失败：",ex)
+            # return tmp_path
     except Exception as e:
         raise gr.Error(f"文件转换失败: {str(e)}")
 def truncate_pdf(pdf_path, n_pages):
@@ -569,6 +575,44 @@ def extract_json_from_markdown(text: str) -> Dict:
         return {
             "translated_text": None
         }
+def image_to_pdf(img_path,  page_size="A4"):
+    doc = fitz.open()
+
+    # 获取图片尺寸
+    img = fitz.open(img_path)
+    img_width = img[0].rect.width
+    img_height = img[0].rect.height
+    img.close()
+    tmp_path = os.path.join(
+        os.path.dirname(img_path),
+        f"temp_{uuid.uuid4()}.pdf"
+    )
+
+    # 设置标准页面
+    if page_size == "A4":
+        page = doc.new_page(width=595, height=842)  # A4尺寸（单位：点）
+    else:
+        page = doc.new_page()  # 默认A4
+
+    # 计算最大适配比例
+    max_width = page.rect.width - 100  # 左右各留50点边距
+    max_height = page.rect.height - 100  # 上下各留50点边距
+    scale = min(max_width / img_width, max_height / img_height)
+
+    # 计算缩放后尺寸
+    scaled_width = img_width * scale
+    scaled_height = img_height * scale
+
+    # 计算居中坐标
+    x = (page.rect.width - scaled_width) / 2
+    y = (page.rect.height - scaled_height) / 2
+    rect = fitz.Rect(x, y, x + scaled_width, y + scaled_height)
+
+    # 插入图片（带自动缩放）
+    page.insert_image(rect, filename=img_path)
+
+    doc.save(tmp_path)
+    return tmp_path
 
 def images_to_pdf(image_folder, output_pdf="output.pdf", dpi=300):
     doc = fitz.open()
