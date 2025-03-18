@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import sys
 import base64
 import glob
 import hashlib
@@ -16,11 +15,14 @@ from typing import List, Tuple
 
 import cv2
 import fitz
+import gradio as gr
 import numpy as np
 import onnxruntime as ort
+import pymupdf
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 from zhipuai import ZhipuAI
+
 root_path="temp"
 
 font_path= "assets/NotoSerifSC-Regular.ttf"
@@ -189,6 +191,22 @@ class DocLayoutONNX:
 # model = YOLOv10("assets/doclayout_yolo_ft.pt")
 model=DocLayoutONNX("assets/doclayout_yolo_ft.onnx")
 # device="cuda:0" if torch.cuda.is_available() else "cpu"
+# --------------------- 文件转换函数 ---------------------
+def convert_to_pdf_if_needed(file_path):
+    """图片转PDF处理（严格保持原有逻辑）"""
+    try:
+        with pymupdf.open(file_path) as doc:
+            if doc.is_pdf:
+                return file_path
+
+            # 生成临时PDF路径
+            tmp_path = os.path.join(os.path.dirname(file_path), f"temp_{uuid.uuid4()}.pdf")
+            pdf_bytes = doc.convert_to_pdf()
+            with open(tmp_path, "wb") as f:
+                f.write(pdf_bytes)
+            return tmp_path
+    except Exception as e:
+        raise gr.Error(f"文件转换失败: {str(e)}")
 def truncate_pdf(pdf_path, n_pages):
     """
     将PDF文件截断为前n页并替换原文件

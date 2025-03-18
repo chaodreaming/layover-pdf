@@ -42,7 +42,7 @@ modelscope无法承受很大的并发，当无法使用时可以自行在本地�
 ### 命令行参数方式
 
 ```
-python main.py --input_pdf pdf_path --api_key xxx --pages 100
+python main.py --input_pdf pdf_pat/img_path --api_key xxx --pages 100
 ```
 
 ### docker使用方式
@@ -54,6 +54,14 @@ docker build -t layover-pdf .
 ```
 docker run  -p 9000:9000 --gpus=all -it layover-pdf /bin/bash  
 ```
+
+### 更新日志
+
+
+
+2025.3.18 新增支持img和打印log进度
+
+2025.3.16上线PDF保留布局翻译功能，目前支持英译中
 
 ### Development Guide
 

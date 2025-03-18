@@ -1,5 +1,5 @@
 import time
-from utils import process_pdf
+from utils import process_pdf,convert_to_pdf_if_needed
 import argparse
 
 if __name__ == "__main__":
@@ -14,8 +14,9 @@ if __name__ == "__main__":
 
     # 执行处理并计时
     start_time = time.time()
+    input_pdf=convert_to_pdf_if_needed(args.input_pdf)
     process_pdf(
-        input_pdf=args.input_pdf,
+        input_pdf=input_pdf,
         api_key=args.api_key,
         pages=args.pages
     )
