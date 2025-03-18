@@ -5,6 +5,7 @@ import threading
 from contextlib import contextmanager
 
 import gradio as gr
+os.system("pip install gradio_pdf -U")
 from gradio_pdf import PDF  # 严格使用gradio_pdf组件
 from tqdm import tqdm
 
