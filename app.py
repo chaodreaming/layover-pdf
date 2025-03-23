@@ -57,17 +57,16 @@ def get_info(input_pdf, api_key, pages):
                 actual_path = convert_to_pdf_if_needed(input_pdf.name)
                 capture.write(f"\n{os.path.basename(input_pdf.name)}文件开始处理")
 
-                env_api_key = os.environ.get("api_key")
-                if env_api_key:
-                    api_key = env_api_key
-                    env_api_result, env_api_status = validate_api_key("assets/img.png", env_api_key)
-                    if not env_api_status:
-                        raise gr.Error("环境变量中的api_key不正确", env_api_result)
-                if not api_key:
-                    raise gr.Error("api_key不能为空")
-                api_result, api_status = validate_api_key("assets/img.png", api_key)
+                # 优先级：用户输入 > 环境变量
+                final_api_key = api_key or os.environ.get("api_key")
+
+                if not final_api_key:
+                    raise gr.Error("请填写API密钥或设置环境变量")
+
+                # 统一验证API KEY
+                api_result, api_status = validate_api_key("assets/img.png", final_api_key)
                 if not api_status:
-                    raise gr.Error(api_result)
+                    raise gr.Error(f"API验证失败: {api_result}")
 
                 # 处理PDF
                 result_path = process_pdf(actual_path, api_key, pages)
