@@ -69,7 +69,7 @@ def get_info(input_pdf, api_key, pages):
                     raise gr.Error(f"API验证失败: {api_result}")
 
                 # 处理PDF
-                result_path = process_pdf(actual_path, api_key, pages)
+                result_path = process_pdf(actual_path, final_api_key, pages)
                 capture.write(f"\n{os.path.basename(result_path)}文件翻译完成")
                 capture.write("\n✅ 任务完成！")
             except Exception as e:
